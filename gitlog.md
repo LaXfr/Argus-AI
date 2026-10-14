@@ -1,5 +1,21 @@
 # Git Commit History & Release Log
 
+## [Release v1.3.0] - Phase 8 Production UI Overhaul (Linear / Vercel / Raycast Obsidian Aesthetic)
+- `feat(ui)`: Overhaul React frontend styling to Linear / Vercel Geist / Raycast obsidian aesthetic (`#050507` canvas, ambient glow, translucent glass cards)
+- `feat(typography)`: Integrate Google Fonts `Inter` for prose and `JetBrains Mono` for latency, citations, codes, and scores
+- `feat(navbar)`: Implement sticky glass navbar with 4-quadrant geometric SVG logo, `v1.3` pill, segmented tab pill switcher, and pulsing telemetry pills
+- `feat(command-bar)`: Redesign query input into full-width hero command bar with spinner & elapsed execution timer
+- `feat(presets)`: Add 4 quick preset query chips (`ERR-409-TIMEOUT`, `Tier-1 SLA Targets`, `Zero-Trust Encryption`, `Abstention Guardrail`)
+- `feat(toggles)`: Add iOS-style toggle switches for Cross-Encoder Reranker and Live NLI Entailment Judge, plus collapsible ingestion drawer
+- `feat(loading)`: Implement pulsing skeleton shimmer loading state to eliminate layout shift during Ollama generation
+- `feat(results)`: Implement asymmetric 60/40 2-column workspace with grounded status pill, citations stream, verbatim quotes, and animated NLI evaluation gauge bars
+- `feat(retrieval)`: Add chunk inspection cards with rank indicators (`#1`, `#2`, `#3`), dual score visualizer bars (Rerank vs. RRF Fusion), and metadata
+- `feat(benchmark)`: Build automated benchmark dashboard with 3 hero KPI bento cards, comparative retrieval matrix table with mini progress bars, and Mode C guardrail card
+- `test(build)`: Verify Vite production bundle (`dist/` created in 480ms with 0 errors and 0 warnings)
+- `docs(release)`: Update roadmap.md, worklog.md, and gitlog.md for Release v1.3.0
+
+---
+
 ## [Release v1.2.0] - Phase 7 Retrieval Differentiation & Singleton Optimization
 - `fix(rerank)`: Eliminate redundant sigmoid transformation so CrossEncoder probability is directly preserved (0.0001 for out-of-domain)
 - `feat(corpus)`: Split corpus into authoritative primary PDF and distinct decoy catalog Markdown, eliminating duplicate chunks

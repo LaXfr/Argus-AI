@@ -44,3 +44,19 @@
 - [x] Default fast inference model to `qwen2.5:1.5b` with tightened generation limits (`num_predict: 180`, `num_ctx: 1024`) for fast CPU response times.
 - [x] Expanded `backend/test_api.py` covering health, benchmark, query with evaluation, and 400 validation (100% pass).
 - [x] Re-verified frontend Vite bundle (`npm run build` completed cleanly in 596ms).
+
+## Phase 8: Production UI Overhaul (Linear / Vercel / Raycast Obsidian Aesthetic) & Release v1.3.0
+- [x] Obsidian Design System: Integrated Google Fonts `Inter` (UI/prose) and `JetBrains Mono` (telemetry, citations, error codes, scores) in `frontend/index.html`.
+- [x] Canvas & Palette: Replaced navy blue with deep obsidian canvas `#050507`, subtle top radial ambient glow, elevated glass surfaces (`rgba(10, 10, 14, 0.75)` with `backdrop-filter: blur(16px)`), and hairline borders (`rgba(255, 255, 255, 0.07)`).
+- [x] Sticky Glass Navbar: Built fixed glass header featuring geometric 4-tile SVG logo, `v1.3` version pill, segmented pill tab switcher, and live pulsing telemetry pills (`Air-Gapped Local`, `Qdrant RRF + BGE`, `Qwen 2.5:1.5b`).
+- [x] Command-Bar Hero Query Workspace: Full-width command bar with search SVG icon, `Run Pipeline ↵` white CTA button with animated loading spinner & elapsed timer, and 4 one-click quick preset chips (`ERR-409-TIMEOUT`, `Tier-1 SLA Targets`, `Zero-Trust Encryption`, `Abstention Guardrail`).
+- [x] iOS-Style Switches & Collapsible Drawer: Smooth toggle switches for Mode B Cross-Encoder Reranker and Live NLI Entailment Judge, with collapsible document ingestion drawer.
+- [x] Pulsing Skeleton Loading Screen: Shimmer keyframe animated layout during query execution, eliminating layout shifts.
+- [x] Asymmetric 2-Column Results Workspace (60/40 Split):
+  - Left column: Grounded vs. Abstained status badge, monospace latency tag, citation stream pills, verbatim glass quote blocks with emerald left border, and animated NLI evaluation gauges (Faithfulness & Context Precision@3).
+  - Right column: Retrieved context chunks stream with rank indicators (`#1`, `#2`, `#3`), dual-score visualizer bars (Rerank vs. RRF Fusion), metadata tags, and collapsible verbatim chunk body.
+- [x] Automated Benchmark Dashboard Overhaul:
+  - 3 hero KPI bento cards: Context Precision@3 Boost (`+47.9%`), 100% Sentence-Level Faithfulness, and Mode C Guardrail rejection accuracy (`0.0001` probability).
+  - Comparative retrieval matrix table with mini score progress bars and overall mean footer.
+  - Mode C Guardrail verification card displaying out-of-domain query evaluation, threshold rejection, and enforced safe response.
+- [x] Verified Production Build: `npm run build` completed with zero errors and zero warnings (480ms).
