@@ -52,55 +52,65 @@ def ensure_collection(client: QdrantClient, collection_name: str = COLLECTION_NA
     else:
         print(f"Collection '{collection_name}' already exists.")
 
-def chunk_markdown_by_headers(md_text: str, source_name: str, max_chars: int = 1500):
-    """Splits Markdown by headings so tables and sections stay intact."""
-    sections = md_text.split("\n## ")
+def chunk_markdown_by_headers(md_text: str, source_name: str, max_chars: int = 550, overlap: int = 100):
+    """Splits Markdown by headings so tables and sections stay intact, then sub-chunks with overlap."""
+    import re
+    # Match markdown headers (#, ##, ###)
+    raw_sections = re.split(r'\n(?=#{1,4}\s+)', md_text)
     chunks, metadata = [], []
+    step = max(100, max_chars - overlap)
     
-    for i, sec in enumerate(sections):
+    for i, sec in enumerate(raw_sections):
         clean_sec = sec.strip()
         if not clean_sec:
             continue
-        # Add header prefix back if split removed it
-        if i > 0:
-            clean_sec = "## " + clean_sec
+        header_line = clean_sec.split("\n")[0].replace("#", "").strip()[:80]
         
-        # Further split if a section is longer than max_chars
-        for start in range(0, len(clean_sec), max_chars - 150):
-            chunk_text = clean_sec[start : start + max_chars]
-            header_line = clean_sec.split("\n")[0].replace("#", "").strip()[:80]
-            chunks.append(chunk_text)
+        if len(clean_sec) <= max_chars:
+            chunks.append(clean_sec)
             metadata.append({
                 "source": source_name,
                 "section": header_line,
-                "chunk_id": f"{source_name}_sec{i}_{start}"
+                "chunk_id": f"{source_name}_sec{i}_0"
             })
+        else:
+            for start in range(0, len(clean_sec), step):
+                chunk_text = clean_sec[start : start + max_chars].strip()
+                if len(chunk_text) < 40 and start > 0:
+                    continue  # skip tiny trailing fragments
+                chunks.append(chunk_text)
+                metadata.append({
+                    "source": source_name,
+                    "section": header_line,
+                    "chunk_id": f"{source_name}_sec{i}_{start}"
+                })
     return chunks, metadata
 
-def ingest_pdfs(data_dir: Optional[Path | str] = None, client: Optional[QdrantClient] = None) -> int:
+def ingest_pdfs(data_dir: Optional[Path | str] = None, client: Optional[QdrantClient] = None, recreate: bool = False) -> int:
+    import uuid
     target_data_dir = Path(data_dir) if data_dir else DATA_DIR
     target_data_dir.mkdir(parents=True, exist_ok=True)
     
     converter = DocumentConverter()
     all_chunks, all_meta = [], []
 
-    files = list(target_data_dir.glob("*.pdf")) + list(target_data_dir.glob("*.md"))
+    files = sorted(list(target_data_dir.glob("*.pdf")) + list(target_data_dir.glob("*.md")) + list(target_data_dir.glob("*.txt")))
     
     for doc_path in files:
         print(f"Parsing {doc_path.name}...")
-        if doc_path.suffix.lower() == ".md":
+        if doc_path.suffix.lower() in [".md", ".txt"]:
             with open(doc_path, "r", encoding="utf-8") as f:
                 md_text = f.read()
         else:
             result = converter.convert(str(doc_path))
             md_text = result.document.export_to_markdown()
         
-        chunks, meta = chunk_markdown_by_headers(md_text, doc_path.name)
+        chunks, meta = chunk_markdown_by_headers(md_text, doc_path.name, max_chars=550, overlap=100)
         all_chunks.extend(chunks)
         all_meta.extend(meta)
 
     if not all_chunks:
-        print(f"No documents (.pdf or .md) found in {target_data_dir}!")
+        print(f"No documents (.pdf, .md, .txt) found in {target_data_dir}!")
         return 0
 
     print(f"Extracting vectors for {len(all_chunks)} chunks (BAAI/bge-small-en-v1.5 Dense + Qdrant/bm25 Sparse)...")
@@ -111,12 +121,22 @@ def ingest_pdfs(data_dir: Optional[Path | str] = None, client: Optional[QdrantCl
     sparse_embeddings = list(sparse_model.embed(all_chunks))
 
     active_client = client or get_qdrant_client()
+    
+    if recreate:
+        try:
+            active_client.delete_collection(COLLECTION_NAME)
+            print(f"Deleted existing collection '{COLLECTION_NAME}' for clean re-indexing.")
+        except Exception:
+            pass
+            
     ensure_collection(active_client, COLLECTION_NAME)
 
     points = []
     for idx, (chunk_text, meta, d_emb, s_emb) in enumerate(zip(all_chunks, all_meta, dense_embeddings, sparse_embeddings)):
+        # Deterministic UUID based on source, section, and text slice
+        point_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{meta.get('source')}_{meta.get('chunk_id')}_{chunk_text[:40]}"))
         point = models.PointStruct(
-            id=idx + 1,
+            id=point_uuid,
             vector={
                 "dense": d_emb.tolist(),
                 "sparse": models.SparseVector(
@@ -142,4 +162,4 @@ def ingest_pdfs(data_dir: Optional[Path | str] = None, client: Optional[QdrantCl
     return len(points)
 
 if __name__ == "__main__":
-    ingest_pdfs()
+    ingest_pdfs(recreate=True)

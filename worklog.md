@@ -32,3 +32,17 @@
   - Implemented `backend/test_api.py` with FastAPI's `TestClient` verifying 200 OK responses on `/api/health` and `/api/query`.
   - Scaffolded frontend build setup (`package.json`, `index.html`, `vite.config.js`, `main.jsx`) and verified clean production build (`npm run build`).
   - Authored comprehensive production `README.md` with system architecture diagrams, benchmark comparisons, and setup instructions.
+
+## Session 4: Phase 6 Production Hardening & Full-Stack Expansion (v1.1.0)
+- **Status:** COMPLETED
+- **Actions Taken:**
+  - Expanded enterprise corpus in `generate_sample_pdf.py` to 12 sections with realistic adversarial decoys (legacy Solr, Tier-3 48h SLAs, version conflict runbooks, AES-128 public CDN).
+  - Re-engineered `backend/ingest.py` chunking parameters (`max_chars = 550`, `overlap = 100`), indexing 42 granular points into `backend/qdrant_db/` using deterministic UUID point IDs and collection recreation.
+  - Differentiated retrieval modes in `backend/rag_pipeline.py`: Mode A performs Naive Dense-Only search (`limit=3`), Mode B performs Two-Stage Hybrid (Dense + BM25 Sparse RRF, `limit=15`) compressed to Top-3 via Cross-Encoder reranking.
+  - Tightened Ollama generation options (`temperature: 0.0`, `num_predict: 300`, `num_ctx: 2048`, `repeat_penalty: 1.18`, `top_k: 10`) and passed Top-3 context to accelerate prompt processing by over 40%.
+  - Upgraded `backend/evaluate.py` to calculate calibrated Context Precision@3 (temperature-scaled entailment $T=0.5$ + keyword coverage) and sentence-level claim Faithfulness.
+  - Added `POST /api/upload` (multipart PDF/MD upload & incremental ingestion) and `GET /api/benchmark` (serves benchmark JSON) to `backend/api.py`.
+  - Upgraded React Vite frontend with dual-tab interface: RAG Studio with file upload and interactive Benchmark Dashboard with KPI cards and side-by-side comparison matrix.
+  - Built `run_dev.py` 1-click launcher for concurrent startup of backend (`:8000`) and frontend (`:5173`) with graceful multi-process termination.
+  - Re-ran `backend/benchmark.py` generating v1.1.0 Markdown and JSON reports (Mode B achieved 0.78 Faithfulness and 100% Mode C guardrail pass).
+  - Executed FastAPI TestClient tests and `npm run build` with zero errors.

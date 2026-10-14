@@ -23,7 +23,16 @@
 - [x] Connect React frontend state to API responses; verify loading, success, and error states.
 - [x] Test collapsible chunk inspection, latency counters, and metric score cards in UI.
 
-## Phase 5: Verification & Polish
+## Phase 5: Verification & Initial Polish
 - [x] Create automated end-to-end benchmark script (`backend/benchmark.py`) comparing Reranked vs. Non-Reranked outputs.
 - [x] Write production-ready `README.md` containing architecture diagrams and benchmark comparison tables.
 - [x] Perform full dry run from empty ingestion state to complete web UI query.
+
+## Phase 6: Production Hardening, Benchmark Calibration & Full-Stack Expansion (v1.1.0)
+- [x] Expand toy corpus to 42 granular chunks (550 chars, 100 overlap) with 12 sections including adversarial distractors (legacy Solr, Tier-3 48h RTO, conflicting version runbooks, public CDN encryption).
+- [x] Differentiate retrieval modes: Mode A = Pure Dense Vector Search (`top_k=3`); Mode B = Production Two-Stage Hybrid (Dense + BM25 RRF, `limit=15`) compressed to Top-3 via Cross-Encoder reranking; Mode C = Abstention Guardrail (`threshold=0.55`).
+- [x] Calibrate evaluation metrics in `backend/evaluate.py`: Context Precision@3 (temperature-scaled entailment $T=0.5$ + query keyword recall) and sentence-level claim Faithfulness.
+- [x] Optimize Ollama latency without thermal runaway: enforce strict generation bounds (`num_predict: 300`, `num_ctx: 2048`, `repeat_penalty: 1.18`, `top_k: 10`, `temperature: 0.0`), Top-3 prompt context, and CPU thread capping (`torch.set_num_threads(4)`).
+- [x] Add live multipart file upload (`POST /api/upload`) with incremental Qdrant upserts and benchmark results API (`GET /api/benchmark`).
+- [x] Upgrade React Vite frontend with dual-tab interface: RAG Studio with file upload and interactive Benchmark Dashboard with KPI cards and side-by-side comparison matrix.
+- [x] Re-run automated benchmark suite, verify 100% guardrail pass and production metrics, and build `run_dev.py` 1-click launcher.

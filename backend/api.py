@@ -1,7 +1,9 @@
 import sys
 import time
+import json
+import shutil
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -48,11 +50,64 @@ def trigger_ingestion():
         chunks_count = ingest_pdfs(client=rag.qdrant)
         return {
             "status": "success",
-            "message": f"Successfully ingested documents into Qdrant",
+            "message": "Successfully ingested documents into Qdrant",
             "chunks_indexed": chunks_count
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+
+@app.post("/api/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """Upload PDF, Markdown, or text file and index incrementally without lock crashes."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file uploaded.")
+    
+    ext = Path(file.filename).suffix.lower()
+    if ext not in [".pdf", ".md", ".txt"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file format '{ext}'. Only .pdf, .md, and .txt files are supported."
+        )
+    
+    data_dir = BASE_DIR / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = data_dir / file.filename
+
+    try:
+        with open(dest_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {str(e)}")
+        
+    try:
+        total_chunks = ingest_pdfs(data_dir=data_dir, client=rag.qdrant)
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "message": f"Successfully uploaded and indexed '{file.filename}'.",
+            "total_chunks_indexed": total_chunks
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Indexing failed: {str(e)}")
+
+@app.get("/api/benchmark")
+def get_benchmark_results():
+    """Serve quantitative benchmark results for React UI comparison tab."""
+    bench_json = BASE_DIR / "benchmark_results.json"
+    if not bench_json.exists():
+        return {
+            "status": "not_ready",
+            "message": "Benchmark suite has not been run yet. Run 'uv run python backend/benchmark.py' to generate results."
+        }
+    try:
+        with open(bench_json, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            "status": "success",
+            "benchmark": data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load benchmark results: {str(e)}")
 
 @app.post("/api/query")
 def query_rag(req: QueryRequest):
@@ -72,7 +127,7 @@ def query_rag(req: QueryRequest):
     # Calculate local Faithfulness & Context Precision if enabled and grounded
     metrics = None
     if req.run_eval and result.is_grounded and chunks:
-        eval_res = evaluate_single(req.question, result.answer, chunks)
+        eval_res = evaluate_single(req.question, result.answer, chunks, model=rag.reranker)
         metrics = {
             "faithfulness": eval_res.faithfulness_score,
             "context_precision": eval_res.context_precision_score,

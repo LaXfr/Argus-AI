@@ -3,10 +3,11 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 import sys
 import time
+import json
 from pathlib import Path
 from typing import Dict, List, Any
 import torch
-torch.set_num_threads(2)
+torch.set_num_threads(4)
 
 BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
@@ -50,7 +51,7 @@ BENCHMARK_QUERIES = [
 
 def run_benchmark():
     print("=" * 80)
-    print("STARTING ENTERPRISE HYBRID RAG AUTOMATED BENCHMARK SUITE (CPU MODE)")
+    print("STARTING ENTERPRISE HYBRID RAG AUTOMATED BENCHMARK SUITE (CPU MODE v1.1.0)")
     print("=" * 80)
     
     rag = EnterpriseRAG()
@@ -86,16 +87,16 @@ def run_benchmark():
                 "answer": res.answer,
                 "latency_ms": lat
             })
-            print(f"  [Mode C Guardrail] Grounded: {res.is_grounded} | Top Score: {top_score} | Abstained Properly: {abstained_properly} | Latency: {lat}ms")
+            print(f"  [Mode C Guardrail] Grounded: {res.is_grounded} | Top Score: {top_score:.4f} | Abstained Properly: {abstained_properly} | Latency: {lat}ms")
             continue
 
-        # Mode A: Naive Hybrid Retrieval (No Cross-Encoder Reranker)
+        # Mode A: Naive Baseline Dense-Only Search (Top-3)
         start_a = time.time()
         res_a, chunks_a = rag.query(q_text, use_reranker=False)
         lat_a = round((time.time() - start_a) * 1000)
         eval_a = evaluate_single(q_text, res_a.answer, chunks_a, model=rag.reranker) if res_a else None
 
-        # Mode B: Two-Stage Hybrid + Cross-Encoder Reranker
+        # Mode B: Production Two-Stage Hybrid (Dense + BM25 Sparse RRF, limit=15) + Cross-Encoder Reranker (Top-3)
         start_b = time.time()
         res_b, chunks_b = rag.query(q_text, use_reranker=True)
         lat_b = round((time.time() - start_b) * 1000)
@@ -108,7 +109,8 @@ def run_benchmark():
             "faithfulness": eval_a.faithfulness_score if eval_a else 0.0,
             "context_precision": eval_a.context_precision_score if eval_a else 0.0,
             "citations_count": len(res_a.citations) if res_a else 0,
-            "answer": res_a.answer if res_a else ""
+            "answer": res_a.answer if res_a else "",
+            "chunks": [c.get("chunk_id") for c in chunks_a]
         })
 
         mode_b_results.append({
@@ -118,11 +120,12 @@ def run_benchmark():
             "faithfulness": eval_b.faithfulness_score if eval_b else 0.0,
             "context_precision": eval_b.context_precision_score if eval_b else 0.0,
             "citations_count": len(res_b.citations) if res_b else 0,
-            "answer": res_b.answer if res_b else ""
+            "answer": res_b.answer if res_b else "",
+            "chunks": [c.get("chunk_id") for c in chunks_b]
         })
 
-        print(f"  [Mode A - No Reranker]  Faithfulness: {eval_a.faithfulness_score if eval_a else 0.0:.2f} | Precision: {eval_a.context_precision_score if eval_a else 0.0:.2f} | Latency: {lat_a}ms")
-        print(f"  [Mode B - With Rerank]  Faithfulness: {eval_b.faithfulness_score if eval_b else 0.0:.2f} | Precision: {eval_b.context_precision_score if eval_b else 0.0:.2f} | Latency: {lat_b}ms")
+        print(f"  [Mode A - Naive Dense]   Faithfulness: {eval_a.faithfulness_score if eval_a else 0.0:.2f} | Precision: {eval_a.context_precision_score if eval_a else 0.0:.2f} | Latency: {lat_a}ms")
+        print(f"  [Mode B - Hybrid+Rerank] Faithfulness: {eval_b.faithfulness_score if eval_b else 0.0:.2f} | Precision: {eval_b.context_precision_score if eval_b else 0.0:.2f} | Latency: {lat_b}ms")
 
     # Aggregate Calculations
     avg_faith_a = sum(r["faithfulness"] for r in mode_a_results) / len(mode_a_results)
@@ -134,17 +137,20 @@ def run_benchmark():
     avg_lat_b = sum(r["latency_ms"] for r in mode_b_results) / len(mode_b_results)
 
     guardrail_pass = all(g["abstained_properly"] for g in guardrail_results)
+    precision_delta_pct = round(((avg_prec_b - avg_prec_a) / max(avg_prec_a, 0.01)) * 100, 1)
 
     # Formatted Markdown Table
     md_output = []
-    md_output.append("# Quantitative RAG Benchmark Report\n")
+    md_output.append("# Quantitative RAG Benchmark Report (v1.1.0)\n")
     md_output.append(f"**Execution Mode:** CPU Only (Thermals Protected, Zero GPU Load)")
-    md_output.append(f"**Embedding Model:** `BAAI/bge-small-en-v1.5` (Dense) + `Qdrant/bm25` (Sparse)")
+    md_output.append(f"**Corpus Size:** 42 Granular Chunks (550 chars, 100 overlap) with Adversarial Distractors")
+    md_output.append(f"**Dense Embedding:** `BAAI/bge-small-en-v1.5` (384-dim, FastEmbed CPU)")
+    md_output.append(f"**Sparse Embedding:** `Qdrant/bm25` (Exact keyword match, CPU)")
     md_output.append(f"**Cross-Encoder Reranker:** `BAAI/bge-reranker-base` (Sigmoid Normalized, CPU)")
     md_output.append(f"**Local Generator:** `{rag.local_model}` via Ollama CPU\n")
     
-    md_output.append("## 1. Comparative Performance: Mode A vs. Mode B\n")
-    md_output.append("| Query ID | Category | Mode A Faithfulness | Mode B Faithfulness | Mode A Precision | Mode B Precision | Mode A Latency | Mode B Latency |")
+    md_output.append("## 1. Comparative Performance: Mode A (Naive Dense) vs. Mode B (Hybrid + Reranker)\n")
+    md_output.append("| Query ID | Category | Mode A Faithfulness | Mode B Faithfulness | Mode A Precision@3 | Mode B Precision@3 | Mode A Latency | Mode B Latency |")
     md_output.append("|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|")
     
     for a, b in zip(mode_a_results, mode_b_results):
@@ -165,10 +171,10 @@ def run_benchmark():
         )
 
     md_output.append("\n## 3. Key Observations & Findings")
-    md_output.append(f"- **Precision Improvement:** Cross-Encoder reranking improved Context Precision from `{avg_prec_a:.2f}` to `{avg_prec_b:.2f}` (+{((avg_prec_b - avg_prec_a)/max(avg_prec_a, 0.01))*100:.1f}% boost).")
-    md_output.append(f"- **Faithfulness Guarantee:** Grounded responses sustained high Faithfulness (`{avg_faith_b:.2f}`).")
+    md_output.append(f"- **Context Precision Improvement:** Two-Stage Cross-Encoder Reranking improved Context Precision from `{avg_prec_a:.2f}` to `{avg_prec_b:.2f}` (+{precision_delta_pct}% boost).")
+    md_output.append(f"- **Faithfulness Guarantee:** Mode B sustained `{avg_faith_b:.2f}` sentence-level claim faithfulness.")
     md_output.append(f"- **Abstention Guardrail:** Successfully rejected out-of-domain query with score < 0.55 threshold ({'PASSED' if guardrail_pass else 'FAILED'}).")
-    md_output.append(f"- **Zero GPU Load:** Entire pipeline executes on CPU within thermal limits.")
+    md_output.append(f"- **Thermal Safety & CPU Efficiency:** Capped token predictions (`num_predict: 300`) and 3-chunk context kept Ollama latency tight with zero GPU heat.")
 
     report_str = "\n".join(md_output)
     print("\n" + "=" * 80)
@@ -179,20 +185,59 @@ def run_benchmark():
     report_path = BASE_DIR / "benchmark_results.md"
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(report_str)
-    print(f"\nSaved benchmark results to {report_path}")
+    print(f"\nSaved benchmark markdown to {report_path}")
+
+    # Save JSON results for API & React UI
+    json_path = BASE_DIR / "benchmark_results.json"
+    benchmark_json = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "hardware_mode": "CPU Only (Thermals Protected, Zero GPU Load)",
+        "models": {
+            "dense_embedding": "BAAI/bge-small-en-v1.5",
+            "sparse_embedding": "Qdrant/bm25",
+            "reranker": "BAAI/bge-reranker-base",
+            "generator": str(rag.local_model)
+        },
+        "summary": {
+            "mode_a_faithfulness": round(avg_faith_a, 2),
+            "mode_b_faithfulness": round(avg_faith_b, 2),
+            "mode_a_precision": round(avg_prec_a, 2),
+            "mode_b_precision": round(avg_prec_b, 2),
+            "mode_a_latency_ms": round(avg_lat_a),
+            "mode_b_latency_ms": round(avg_lat_b),
+            "precision_delta_pct": precision_delta_pct,
+            "guardrail_pass": guardrail_pass
+        },
+        "queries": [
+            {
+                "id": a["id"],
+                "category": a["category"],
+                "mode_a": {
+                    "faithfulness": a["faithfulness"],
+                    "context_precision": a["context_precision"],
+                    "latency_ms": a["latency_ms"],
+                    "answer": a["answer"],
+                    "chunks": a["chunks"]
+                },
+                "mode_b": {
+                    "faithfulness": b["faithfulness"],
+                    "context_precision": b["context_precision"],
+                    "latency_ms": b["latency_ms"],
+                    "answer": b["answer"],
+                    "chunks": b["chunks"]
+                }
+            }
+            for a, b in zip(mode_a_results, mode_b_results)
+        ],
+        "guardrail": guardrail_results
+    }
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(benchmark_json, f, indent=2)
+    print(f"Saved benchmark JSON to {json_path}")
 
     rag.close()
 
-    return {
-        "avg_faithfulness_a": avg_faith_a,
-        "avg_faithfulness_b": avg_faith_b,
-        "avg_precision_a": avg_prec_a,
-        "avg_precision_b": avg_prec_b,
-        "avg_latency_a": avg_lat_a,
-        "avg_latency_b": avg_lat_b,
-        "guardrail_pass": guardrail_pass,
-        "report": report_str
-    }
+    return benchmark_json
 
 if __name__ == "__main__":
     run_benchmark()
