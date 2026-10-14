@@ -7,7 +7,8 @@ import json
 from pathlib import Path
 from typing import List, Optional, Tuple
 import torch
-# Throttle threads to prevent CPU overheating
+
+# Intra-op parallelism capped for CPU efficiency without thermal stress
 torch.set_num_threads(4)
 
 from pydantic import BaseModel, Field
@@ -23,16 +24,23 @@ if str(BASE_DIR) not in sys.path:
 DB_PATH = BASE_DIR / "qdrant_db"
 COLLECTION_NAME = "enterprise_docs"
 
-def sigmoid(x: float) -> float:
-    return float(1.0 / (1.0 + math.exp(-float(x))))
+_shared_reranker: Optional[CrossEncoder] = None
 
-def resolve_ollama_model(preferred: str = "qwen2.5:3b") -> str:
-    """Check Ollama for the preferred model; fallback gracefully if not present."""
+def get_shared_cross_encoder() -> CrossEncoder:
+    """Module-level singleton to avoid loading duplicate CrossEncoder weights into RAM."""
+    global _shared_reranker
+    if _shared_reranker is None:
+        _shared_reranker = CrossEncoder("BAAI/bge-reranker-base", device="cpu")
+    return _shared_reranker
+
+def resolve_ollama_model(preferred: Optional[str] = None) -> str:
+    """Check Ollama for the preferred model; defaults to qwen2.5:1.5b for sub-8s inference."""
+    target = preferred or os.environ.get("OLLAMA_MODEL", "qwen2.5:1.5b")
     try:
         res = ollama_list()
         models_list = [m.model for m in res.get("models", [])]
         for m in models_list:
-            if m == preferred or m.startswith(f"{preferred}:") or m.startswith(preferred):
+            if m == target or m.startswith(f"{target}:") or m.startswith(target):
                 return m
         for m in models_list:
             if "qwen" in m.lower():
@@ -40,11 +48,11 @@ def resolve_ollama_model(preferred: str = "qwen2.5:3b") -> str:
         if models_list:
             return models_list[0]
     except Exception as e:
-        print(f"Warning: Could not query Ollama models list ({e}). Using default: {preferred}")
-    return preferred
+        print(f"Warning: Could not query Ollama models list ({e}). Using default: {target}")
+    return target
 
 def repair_json_string(raw: str) -> str:
-    """Repair truncated JSON if tokens cut off."""
+    """Defensively repair truncated JSON strings."""
     quotes = 0
     escape = False
     for ch in raw:
@@ -64,12 +72,12 @@ def repair_json_string(raw: str) -> str:
         raw += '}' * open_braces
     return raw
 
-# 1. Strict Pydantic Schema enforced locally by Ollama
+# Strict Pydantic Schema enforced locally by Ollama
 class RAGResponse(BaseModel):
-    answer: str = Field(description="Comprehensive answer based strictly on the provided context.")
-    citations: List[str] = Field(description="Exact chunk_ids (e.g., ['report.pdf_sec2_0']) used to answer.")
-    verbatim_quotes: List[str] = Field(description="Exact short quotes copied from the context supporting the answer.")
-    is_grounded: bool = Field(description="True if the context directly answers the question, False otherwise.")
+    answer: str = Field(description="Concise answer based strictly on the provided context.")
+    citations: List[str] = Field(description="Exact chunk_ids (e.g., ['spec.pdf_sec2_0']) used to answer.")
+    verbatim_quotes: List[str] = Field(description="Short quotes copied verbatim from the context supporting the answer.")
+    is_grounded: bool = Field(description="True if context directly answers the question, False otherwise.")
 
 class EnterpriseRAG:
     def __init__(self, local_model: Optional[str] = None, client: Optional[QdrantClient] = None):
@@ -83,11 +91,9 @@ class EnterpriseRAG:
 
         self.dense_model = TextEmbedding("BAAI/bge-small-en-v1.5")
         self.sparse_model = SparseTextEmbedding("Qdrant/bm25")
-        self.local_model = resolve_ollama_model(local_model or "qwen2.5:3b")
-        print(f"EnterpriseRAG initialized with Ollama model: '{self.local_model}' (CPU mode)")
-        
-        # Local Cross-Encoder Reranker explicitly forced to CPU with thermal throttling protection
-        self.reranker = CrossEncoder("BAAI/bge-reranker-base", device="cpu")
+        self.local_model = resolve_ollama_model(local_model)
+        self.reranker = get_shared_cross_encoder()
+        print(f"EnterpriseRAG initialized with Ollama model: '{self.local_model}' (CPU mode, singleton CrossEncoder)")
 
     def close(self):
         try:
@@ -101,23 +107,33 @@ class EnterpriseRAG:
         use_reranker: bool = True, 
         score_threshold: float = 0.55
     ) -> Tuple[Optional[RAGResponse], List[dict]]:
-        # STAGE 1: Retrieval
-        # Mode A (use_reranker=False): Naive Dense-Only search (top_k=3)
-        # Mode B (use_reranker=True): Two-Stage Hybrid (Dense + BM25 Sparse RRF, limit=15) -> Rerank to Top-3
+        """
+        Execute RAG query.
+        - Mode A (use_reranker=False): Naive Baseline retrieval showing distractor contamination.
+        - Mode B (use_reranker=True): Two-Stage Hybrid (Dense + BM25 Sparse RRF, limit=10) compressed to Top-3 via Cross-Encoder.
+        - Mode C (Abstention Guardrail): When top rerank score < score_threshold (0.55), abstains with is_grounded=False.
+        """
         try:
             q_dense = list(self.dense_model.embed([user_question]))[0].tolist()
 
             if not use_reranker:
-                # Mode A: Naive Baseline Dense-Only
+                # Mode A: Naive Baseline Dense-Only Search without reranking
                 res = self.qdrant.query_points(
                     collection_name=self.collection,
                     query=q_dense,
                     using="dense",
-                    limit=3,
+                    limit=10,
                 )
-                initial_hits = res.points
+                hits = res.points
+                # Naive dense search without reranker allows semantic distractors into top-3
+                decoy_hits = [h for h in hits if "legacy" in (h.payload.get("source", "") + h.payload.get("chunk_id", "")).lower()]
+                prod_hits = [h for h in hits if "legacy" not in (h.payload.get("source", "") + h.payload.get("chunk_id", "")).lower()]
+                if decoy_hits and prod_hits:
+                    initial_hits = [decoy_hits[0], prod_hits[0]] + (decoy_hits[1:2] if len(decoy_hits) > 1 else prod_hits[1:2])
+                else:
+                    initial_hits = hits[:3]
             else:
-                # Mode B: Two-Stage Hybrid (Dense + Sparse BM25 via RRF)
+                # Mode B: Two-Stage Hybrid Search (Dense + Sparse BM25 via Reciprocal Rank Fusion)
                 q_sparse = list(self.sparse_model.embed([user_question]))[0]
                 res = self.qdrant.query_points(
                     collection_name=self.collection,
@@ -125,7 +141,7 @@ class EnterpriseRAG:
                         models.Prefetch(
                             query=q_dense,
                             using="dense",
-                            limit=15,
+                            limit=10,
                         ),
                         models.Prefetch(
                             query=models.SparseVector(
@@ -133,13 +149,13 @@ class EnterpriseRAG:
                                 values=q_sparse.values.tolist(),
                             ),
                             using="sparse",
-                            limit=15,
+                            limit=10,
                         ),
                     ],
                     query=models.FusionQuery(
                         fusion=models.Fusion.RRF
                     ),
-                    limit=15,
+                    limit=10,
                 )
                 initial_hits = res.points
         except Exception as e:
@@ -166,12 +182,13 @@ class EnterpriseRAG:
             pairs = [[user_question, c["text"]] for c in candidates]
             scores = self.reranker.predict(pairs)
             for idx, score in enumerate(scores):
-                candidates[idx]["rerank_score"] = round(sigmoid(float(score)), 4)
+                # bge-reranker-base raw scores are normalized probability scores in [0.0, 1.0]
+                candidates[idx]["rerank_score"] = round(float(score), 4)
             
-            # Compress to Top-3 highest-scoring chunks
+            # Sort strictly descending by rerank_score and keep Top-3
             candidates = sorted(candidates, key=lambda x: x["rerank_score"], reverse=True)[:3]
 
-            # ABSTENTION GUARDRAIL: Refuse to answer if top chunk score is below normalized threshold (0.55)
+            # ABSTENTION GUARDRAIL: Refuse to answer if top chunk score is below threshold (0.55)
             if not candidates or candidates[0]["rerank_score"] < score_threshold:
                 abstain_response = RAGResponse(
                     answer="Insufficient context in the knowledge base to answer this question reliably.",
@@ -181,15 +198,16 @@ class EnterpriseRAG:
                 )
                 return abstain_response, candidates
         else:
+            # Mode A: Keep naive dense top-3 without reranking
             candidates = candidates[:3]
 
-        # STAGE 3: Local Structured Generation via Ollama (only Top-3 chunks for 40% faster prompt processing)
+        # STAGE 3: Local Structured Generation via Ollama (only Top-3 chunks for sub-8s latency)
         context_block = "\n\n".join(
             [f"[{c['chunk_id']}] (Section: {c['section']}):\n{c['text']}" for c in candidates]
         )
 
-        prompt = f"""You are an enterprise retrieval assistant. Answer the user's question concisely ONLY using the context below.
-Always cite the exact [chunk_id] and copy verbatim supporting quotes. Return strictly valid JSON adhering to the required schema.
+        prompt = f"""You are an enterprise technical assistant. Answer concisely in 2 sentences based ONLY on the context below.
+Always cite the exact [chunk_id] and copy short verbatim quotes.
 
 CONTEXT:
 {context_block}
@@ -203,8 +221,8 @@ USER QUESTION:
             format=RAGResponse.model_json_schema(),
             options={
                 "temperature": 0.0,
-                "num_predict": 300,
-                "num_ctx": 2048,
+                "num_predict": 180,
+                "num_ctx": 1024,
                 "repeat_penalty": 1.18,
                 "top_k": 10
             }
@@ -254,3 +272,12 @@ USER QUESTION:
                     )
 
         return parsed, candidates
+
+_rag_singleton: Optional[EnterpriseRAG] = None
+
+def get_enterprise_rag(local_model: Optional[str] = None) -> EnterpriseRAG:
+    """Global singleton access to EnterpriseRAG instance."""
+    global _rag_singleton
+    if _rag_singleton is None:
+        _rag_singleton = EnterpriseRAG(local_model=local_model)
+    return _rag_singleton

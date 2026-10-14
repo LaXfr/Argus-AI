@@ -1,20 +1,20 @@
 {
-  "timestamp": "2026-10-14 23:03:10",
+  "timestamp": "2026-10-15 03:04:18",
   "hardware_mode": "CPU Only (Thermals Protected, Zero GPU Load)",
   "models": {
     "dense_embedding": "BAAI/bge-small-en-v1.5",
     "sparse_embedding": "Qdrant/bm25",
-    "reranker": "BAAI/bge-reranker-base",
+    "reranker": "BAAI/bge-reranker-base (singleton)",
     "generator": "qwen2.5:1.5b"
   },
   "summary": {
-    "mode_a_faithfulness": 0.74,
-    "mode_b_faithfulness": 0.78,
-    "mode_a_precision": 0.8,
-    "mode_b_precision": 0.8,
-    "mode_a_latency_ms": 20229,
-    "mode_b_latency_ms": 27578,
-    "precision_delta_pct": 1.3,
+    "mode_a_faithfulness": 0.99,
+    "mode_b_faithfulness": 1.0,
+    "mode_a_precision": 0.6,
+    "mode_b_precision": 0.9,
+    "mode_a_latency_ms": 14877,
+    "mode_b_latency_ms": 19193,
+    "precision_delta_pct": 47.9,
     "guardrail_pass": true
   },
   "queries": [
@@ -22,25 +22,25 @@
       "id": "Q1",
       "category": "Exact Keyword / Error Code",
       "mode_a": {
-        "faithfulness": 0.57,
-        "context_precision": 0.92,
-        "latency_ms": 21670,
-        "answer": "The resolution runbook for Error Code ERR-409-TIMEOUT involves two steps:\n\n1. Terminate the stale transaction thread immediately to prevent cascading deadlocks.\n2. Inspect Redis cluster shard health and active lock keys using CLUSTER NODES or similar commands.",
+        "faithfulness": 1.0,
+        "context_precision": 0.55,
+        "latency_ms": 18217,
+        "answer": "The incident resolution runbook procedure for error code ERR-409-TIMEOUT involves terminating the stale transaction thread immediately to prevent cascading deadlocks, inspecting Redis cluster shard health and active lock keys using CLUSTER NODES, triggering an idempotent rollback of uncommitted operations, and instructing client applications to implement exponential backoff with randomized jitter between 200 ms and 5,000 ms before retrying.",
         "chunks": [
+          "legacy_and_decoy_systems.md_sec3_0",
           "enterprise_platform_spec.md_sec3_0",
-          "enterprise_platform_spec.pdf_sec5_0",
-          "enterprise_platform_spec.md_sec5_0"
+          "legacy_and_decoy_systems.md_sec3_0"
         ]
       },
       "mode_b": {
-        "faithfulness": 0.59,
-        "context_precision": 0.92,
-        "latency_ms": 30788,
-        "answer": "The resolution runbook for Error Code ERR-409-TIMEOUT includes two steps:\n\n1. Terminate the stale transaction thread immediately to prevent cascading deadlocks.\n2. Inspect Redis cluster shard health and active lock keys using CLUSTER NODES or CLUS commands.",
+        "faithfulness": 1.0,
+        "context_precision": 0.95,
+        "latency_ms": 20642,
+        "answer": "The incident resolution runbook for Error Code ERR-409-TIMEOUT involves two steps: Step 1, terminate the stale transaction thread immediately to prevent cascading deadlocks; and Step 2, inspect Redis cluster shard health and active lock keys using CLU.",
         "chunks": [
-          "enterprise_platform_spec.pdf_sec3_0",
+          "enterprise_platform_spec.md_sec5_0",
           "enterprise_platform_spec.pdf_sec5_0",
-          "enterprise_platform_spec.md_sec5_0"
+          "enterprise_platform_spec.pdf_sec3_0"
         ]
       }
     },
@@ -48,25 +48,25 @@
       "id": "Q2",
       "category": "Tabular SLA Metrics",
       "mode_a": {
-        "faithfulness": 0.78,
-        "context_precision": 0.8,
-        "latency_ms": 12962,
-        "answer": "[enterprise_platform_spec.md_sec3_450] specifies that Tier-1's RTO is 48 hours following severe multi-region disruptions, while [enterprise_platform_spec.pdf_sec3_450] indicates the same for Tier-3 cold snapshots. Both documents mention a strict Recovery Point Objective (RPO) of 0 seconds using synchronous multi-zone replication without data loss.",
+        "faithfulness": 1.0,
+        "context_precision": 0.56,
+        "latency_ms": 11683,
+        "answer": "The platform guarantees high availability with Platform Uptime SLAs of at least 99.995% monthly rolling uptime, including tier-1 service credit penalties for failures and downtime events.",
         "chunks": [
-          "enterprise_platform_spec.md_sec3_450",
-          "enterprise_platform_spec.pdf_sec3_450",
-          "enterprise_platform_spec.md_sec4_0"
+          "legacy_and_decoy_systems.md_sec2_0",
+          "enterprise_platform_spec.pdf_sec2_0",
+          "legacy_and_decoy_systems.md_sec2_0"
         ]
       },
       "mode_b": {
-        "faithfulness": 0.77,
-        "context_precision": 0.83,
-        "latency_ms": 24871,
-        "answer": "[enterprise_platform_spec.md_sec3_450] specifies that Tier-1 SLA's Recovery Time Objective (RTO) is strictly under 15 minutes per incident event via automated standby cluster failover.",
+        "faithfulness": 1.0,
+        "context_precision": 0.97,
+        "latency_ms": 19037,
+        "answer": "The platform guarantees a Recovery Time Objective (RTO) of strictly 15 minutes per incident event via automated standby cluster failover, ensuring that recovery times are minimized. The Recovery Point Objective (RPO), on the other hand, is strictly 0 seconds using synchronous multi-availability.",
         "chunks": [
-          "enterprise_platform_spec.md_sec3_450",
-          "enterprise_platform_spec.md_sec4_0",
-          "enterprise_platform_spec.md_sec3_0"
+          "enterprise_platform_spec.md_sec3_0",
+          "enterprise_platform_spec.pdf_sec2_0",
+          "enterprise_platform_spec.pdf_sec3_0"
         ]
       }
     },
@@ -74,25 +74,25 @@
       "id": "Q3",
       "category": "Security & Encryption Specs",
       "mode_a": {
-        "faithfulness": 0.74,
-        "context_precision": 0.74,
-        "latency_ms": 24682,
-        "answer": "[enterprise_platform_spec.pdf_sec8_0] mandates AES-256-GCM for both data at rest and data in transit. [enterprise_platform_spec.md_sec4_0] specifies AWS KMS Customer Managed Keys (CMK) or HashiCorp Vault with automated 90-day key rotation, while [enterprise_platform_spec.pdf_sec4_0] confirms mutual TLS (mTLS) enforcement using TLS 1.3 protocol for internal network communications and role-based access control policies to restrict data access at the document chunk level.",
+        "faithfulness": 0.99,
+        "context_precision": 0.67,
+        "latency_ms": 15185,
+        "answer": "Under the enterprise platform's security compliance, encryption &amp; Zero-Trust Governance guidelines, AES-256-GCM is used to encrypt data both at rest (stored within Qdrant vector database and attached NVMe block volumes) and in transit. Key management services include AWS KMS Customer Managed Keys (CMKs), HashiCorp Vault Enterprise with automated 90-day rotation for managing cryptographic keys, ensuring compliance with SOC2 Type II, ISO/IEC 27001, and HIPAA mandates.",
         "chunks": [
+          "legacy_and_decoy_systems.md_sec5_0",
           "enterprise_platform_spec.pdf_sec8_0",
-          "enterprise_platform_spec.md_sec4_0",
           "enterprise_platform_spec.pdf_sec4_0"
         ]
       },
       "mode_b": {
-        "faithfulness": 0.88,
-        "context_precision": 0.75,
-        "latency_ms": 27492,
-        "answer": "[enterprise_platform_spec.md_sec4_0] mandates the following encryption algorithms and key management services: AES-256-GCM (data at rest) and AWS KMS Customer Managed Keys or HashiCorp Vault with automated 90-day key rotation for data in transit. [enterprise_platform_spec.pdf_sec4_0] specifies that all internal network communications enforce mutual TLS using the TLS 1.3 protocol standard, eliminating unencrypted plain-text transit; role-based access control (RBAC) and attribute-based security policies restrict data access at the document chunk level; auditing logs are streamed to an append-only WORM compliant storage bucket for immutability.",
+        "faithfulness": 1.0,
+        "context_precision": 0.86,
+        "latency_ms": 19956,
+        "answer": "The platform complies with SOC2 Type II, ISO/IEC 27001, and HIPAA compliance frameworks. Data at rest is encrypted using AES-256-GCM, while all internal network communications enforce mutual TLS (mTLS) with TLS 1.3 protocol standards.",
         "chunks": [
-          "enterprise_platform_spec.md_sec4_0",
           "enterprise_platform_spec.pdf_sec4_0",
-          "enterprise_platform_spec.pdf_sec9_0"
+          "enterprise_platform_spec.md_sec4_0",
+          "enterprise_platform_spec.pdf_sec4_0"
         ]
       }
     },
@@ -100,25 +100,25 @@
       "id": "Q4",
       "category": "Architecture & Ingestion",
       "mode_a": {
-        "faithfulness": 0.88,
-        "context_precision": 0.72,
-        "latency_ms": 21601,
-        "answer": "[enterprise_platform_spec.md_sec1_0] states that the Enterprise Cloud Data Platform operates on an air-gapped architecture with independent microservices for data ingestion, semantic vector indexing, hybrid retrieval, and generative inference. The system uses IBM Docling to parse technical documents in a layout-aware manner while preserving headers, tabular metadata, and code structures. Documents are segmented using recursive header chunking with a target window of 1500 characters and a 150-character overlap for optimal performance.\n\nRegarding the vector models powering hybrid search:\n- The storage layer utilizes an embedded Qdrant vector database operating in local disk persistence mode to achieve enterprise-grade recall. \n- For semantic retrieval, BAAI/bge-small-en-v1.5 (384 dimensions) is used for dense vector embeddings.\n- Sparse BM25 token frequencies are combined with these vectors using Reciprocal Rank Fusion (RRF).\n\nThese models and techniques ensure efficient data processing and effective search capabilities in the microservices architecture of the Enterprise Cloud Data Platform.",
+        "faithfulness": 0.97,
+        "context_precision": 0.64,
+        "latency_ms": 14422,
+        "answer": "During the legacy data processing cluster's document parsing phase, fixed-size byte streaming chunks were used to segment documents without considering layout awareness. The segmentation was done using 4000-character chunks that frequently split tables and headers across boundaries. For vector models powering production hybrid search in this system, Apache Solr with TF-IDF term weighting is utilized.",
         "chunks": [
-          "enterprise_platform_spec.md_sec1_0",
+          "legacy_and_decoy_systems.md_sec1_0",
           "enterprise_platform_spec.pdf_sec1_0",
           "enterprise_platform_spec.md_sec1_0"
         ]
       },
       "mode_b": {
-        "faithfulness": 0.88,
-        "context_precision": 0.72,
-        "latency_ms": 27162,
-        "answer": "[enterprise_platform_spec.pdf_sec1_0] states that the Enterprise Cloud Data Platform uses IBM Docling for native layout-aware parsing of technical documents. Documents are segmented using recursive header chunking with a target window size of **550 characters** and an overlap of **150 characters**, ensuring accurate preservation of headers, tabular metadata, and code structures while maintaining readability.\n\nRegarding the vector models powering hybrid search:\n- The storage layer utilizes Qdrant for its local disk persistence mode to achieve enterprise-grade recall. \n- To enhance recall performance, Qdrant combines **dense vector embeddings generated by BAAI/bge-small-en-v1.5 (384 dimensions)** with sparse BM25 token frequencies.\n- These vectors are fused via Reciprocal Rank Fusion (RRF) to improve the effectiveness of hybrid search and retrieval.",
+        "faithfulness": 1.0,
+        "context_precision": 0.8,
+        "latency_ms": 17137,
+        "answer": "[enterprise_platform_spec.pdf_sec1_0] (Section: Section 1: Microservices Architecture &amp; System Overview): The Enterprise Cloud Data Platform operates on an air-gapped, zero-cloud dependency architecture. The system decouples data ingestion, semantic vector indexing, hybrid retrieval, and generative inference into independent microservices.",
         "chunks": [
           "enterprise_platform_spec.pdf_sec1_0",
-          "enterprise_platform_spec.pdf_sec1_0",
-          "enterprise_platform_spec.md_sec1_0"
+          "enterprise_platform_spec.md_sec1_0",
+          "enterprise_platform_spec.pdf_sec1_0"
         ]
       }
     }
@@ -127,11 +127,11 @@
     {
       "id": "Q5 (Guardrail)",
       "question": "What is the reimbursement policy for ergonomic home office furniture and gym passes?",
-      "top_rerank_score": 0.5,
+      "top_rerank_score": 0.0001,
       "is_grounded": false,
       "abstained_properly": true,
       "answer": "Insufficient context in the knowledge base to answer this question reliably.",
-      "latency_ms": 9200
+      "latency_ms": 6320
     }
   ]
 }

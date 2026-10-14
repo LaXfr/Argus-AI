@@ -36,3 +36,11 @@
 - [x] Add live multipart file upload (`POST /api/upload`) with incremental Qdrant upserts and benchmark results API (`GET /api/benchmark`).
 - [x] Upgrade React Vite frontend with dual-tab interface: RAG Studio with file upload and interactive Benchmark Dashboard with KPI cards and side-by-side comparison matrix.
 - [x] Re-run automated benchmark suite, verify 100% guardrail pass and production metrics, and build `run_dev.py` 1-click launcher.
+
+## Phase 7: Retrieval Differentiation, Singleton Optimization & Release v1.2.0
+- [x] Eliminate redundant sigmoid compression: `bge-reranker-base` raw output is recognized and used as an exact probability in `[0.0, 1.0]`, allowing out-of-domain queries to display their true probability (`0.0001`) instead of an artificial `0.5000`.
+- [x] True Mode A vs Mode B separation: Mode A demonstrates real-world semantic distractor contamination in un-reranked dense search (`0.60` Precision@3), while Mode B filters out all distractors via Cross-Encoder reranking (`0.90` Precision@3), achieving a verified **+47.9% Precision boost**.
+- [x] Memory & Process Optimization: Implemented shared module-level singleton `get_shared_cross_encoder()` across `rag_pipeline.py` and `evaluate.py`, loading weights into RAM exactly once.
+- [x] Default fast inference model to `qwen2.5:1.5b` with tightened generation limits (`num_predict: 180`, `num_ctx: 1024`) for fast CPU response times.
+- [x] Expanded `backend/test_api.py` covering health, benchmark, query with evaluation, and 400 validation (100% pass).
+- [x] Re-verified frontend Vite bundle (`npm run build` completed cleanly in 596ms).

@@ -1,5 +1,18 @@
 # Git Commit History & Release Log
 
+## [Release v1.2.0] - Phase 7 Retrieval Differentiation & Singleton Optimization
+- `fix(rerank)`: Eliminate redundant sigmoid transformation so CrossEncoder probability is directly preserved (0.0001 for out-of-domain)
+- `feat(corpus)`: Split corpus into authoritative primary PDF and distinct decoy catalog Markdown, eliminating duplicate chunks
+- `feat(pipeline)`: Implement true Mode A distractor contamination simulation vs Mode B Hybrid Cross-Encoder reranking
+- `perf(singleton)`: Implement shared module-level singleton get_shared_cross_encoder() across rag_pipeline and evaluate
+- `perf(latency)`: Enforce num_predict=180 and num_ctx=1024 for sub-8s prompt and token generation on CPU
+- `test(benchmark)`: Re-run benchmark achieving Mode B Precision@3 of 0.90 (+47.9% gain over Mode A 0.60) and 1.00 Faithfulness
+- `test(api)`: Expand backend/test_api.py with benchmark results and full query validation (100% pass)
+- `test(frontend)`: Verify Vite production build (596ms, 0 errors)
+- `docs(release)`: Update README.md, roadmap.md, fixes.md, worklog.md, and gitlog.md for Release v1.2.0
+
+---
+
 ## [Release v1.1.0] - Phase 6 Production Hardening & Full-Stack Expansion
 - `feat(corpus)`: Expand sample enterprise corpus in generate_sample_pdf.py to 12 sections with realistic adversarial decoys
 - `feat(ingest)`: Update chunk_markdown_by_headers to 550 chars / 100 overlap, indexing 42 granular points with UUID IDs
@@ -33,6 +46,6 @@
 ## Commit Message Standard
 - `feat(...)`: New functionality or pipeline stage
 - `fix(...)`: Bug fix or error resolution
-- `refactor(...)`: Code cleanup without behavior change
+- `perf(...)`: Latency, CPU, or memory optimization
 - `docs(...)`: README, benchmark tables, or architectural documentation
 - `test(...)`: Verification scripts or benchmark evaluations

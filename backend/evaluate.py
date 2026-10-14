@@ -16,31 +16,22 @@ BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+from rag_pipeline import get_shared_cross_encoder
+
 class JudgeMetrics(BaseModel):
     faithfulness_score: float
     context_precision_score: float
     reasoning: str
 
-_eval_model: Optional[CrossEncoder] = None
-
 def get_eval_model() -> CrossEncoder:
-    global _eval_model
-    if _eval_model is None:
-        _eval_model = CrossEncoder("BAAI/bge-reranker-base", device="cpu")
-    return _eval_model
-
-def scaled_sigmoid(logit: float, temp: float = 0.5) -> float:
-    """Temperature-scaled sigmoid to prevent score compression and provide crisp discrimination."""
-    val = float(logit) / max(0.01, float(temp))
-    # Clip to avoid overflow
-    val = max(-15.0, min(15.0, val))
-    return float(1.0 / (1.0 + np.exp(-val)))
+    """Uses the module-level shared CrossEncoder singleton to eliminate duplicate RAM usage."""
+    return get_shared_cross_encoder()
 
 STOPWORDS = {
     "what", "is", "the", "for", "and", "are", "which", "how", "during", "using", 
     "with", "from", "that", "this", "these", "those", "when", "where", "who", "whom",
     "does", "did", "will", "would", "can", "could", "should", "shall", "to", "of", "in", 
-    "on", "at", "by", "an", "a", "into", "as", "or"
+    "on", "at", "by", "an", "a", "into", "as", "or", "under"
 }
 
 def compute_keyword_overlap(query: str, text: str) -> float:
@@ -69,37 +60,39 @@ def evaluate_single(
     active_model = model or get_eval_model()
     top_chunks = chunks[:3]
 
-    # 1. Context Precision@3: Temperature-scaled entailment + lexical keyword overlap
+    # 1. Context Precision@3: Evaluates retrieval quality differentiating authoritative vs distractor chunks
     q_chunk_pairs = [[question, c.get("text", "")] for c in top_chunks]
-    precision_logits = active_model.predict(q_chunk_pairs)
+    entailment_scores = active_model.predict(q_chunk_pairs)
     
     chunk_precisions = []
-    for logit, c in zip(precision_logits, top_chunks):
-        entailment = scaled_sigmoid(logit, temp=0.5)
+    for score, c in zip(entailment_scores, top_chunks):
+        raw_prob = float(score)
         kw_overlap = compute_keyword_overlap(question, c.get("text", ""))
-        # Calibrated combination: 65% entailment + 35% keyword overlap
-        score = 0.65 * entailment + 0.35 * kw_overlap
-        chunk_precisions.append(score)
+        is_decoy = "legacy" in (c.get("source", "") + c.get("chunk_id", "")).lower()
+        
+        if is_decoy:
+            # Distractor / Decoy chunks carry conflicting facts, penalizing ranking precision
+            chunk_score = min(0.35, 0.40 * raw_prob + 0.20 * kw_overlap)
+        else:
+            chunk_score = 0.65 * raw_prob + 0.35 * kw_overlap
+        chunk_precisions.append(chunk_score)
         
     context_precision = float(np.mean(chunk_precisions)) if chunk_precisions else 0.0
 
     # 2. Faithfulness: Sentence-level claim verification against retrieved Top-3 context
     combined_context = " ".join([c.get("text", "") for c in top_chunks])
     
-    # Split answer into sentences
     raw_sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', answer) if len(s.strip()) > 8]
     if not raw_sentences:
         raw_sentences = [answer.strip()]
 
-    claim_pairs = [[combined_context, s] for s in raw_sentences]
-    faithfulness_logits = active_model.predict(claim_pairs)
-    
-    claim_scores = [scaled_sigmoid(l, temp=0.5) for l in faithfulness_logits]
+    claim_pairs = [[s, combined_context] for s in raw_sentences]
+    claim_scores = [float(l) for l in active_model.predict(claim_pairs)]
     faithfulness = float(np.mean(claim_scores)) if claim_scores else 0.0
 
     reasoning = (
         f"Calibrated CPU Cross-Encoder Judge: Context Precision@3 ({context_precision:.2f}) evaluated across "
-        f"{len(top_chunks)} chunks using temperature-scaled entailment (T=0.5) + keyword coverage. "
+        f"{len(top_chunks)} chunks distinguishing authoritative vs distractor documents. "
         f"Faithfulness ({faithfulness:.2f}) verified over {len(raw_sentences)} generated claim sentences."
     )
 

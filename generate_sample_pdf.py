@@ -1,19 +1,20 @@
 import os
 from pathlib import Path
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 DATA_DIR = Path(__file__).resolve().parent / "backend" / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 PDF_PATH = DATA_DIR / "enterprise_platform_spec.pdf"
-MD_PATH = DATA_DIR / "enterprise_platform_spec.md"
+DECOY_MD_PATH = DATA_DIR / "legacy_and_decoy_systems.md"
 
-def build_content():
+def build_primary_spec_sections():
+    """Authoritative Tier-1 Enterprise Platform Specifications."""
     sections = []
 
-    # Section 1
+    # Section 1: Architecture
     sections.append((
         "Section 1: Microservices Architecture & System Overview",
         "The Enterprise Cloud Data Platform operates on an air-gapped, zero-cloud dependency architecture. "
@@ -26,19 +27,9 @@ def build_content():
         "with sparse BM25 token frequencies, fused via Reciprocal Rank Fusion (RRF)."
     ))
 
-    # Section 2 - Distractor for Architecture
+    # Section 2: Core Tier-1 SLAs
     sections.append((
-        "Section 2: Legacy Batch Processing Subsystem (Deprecated)",
-        "The legacy data processing cluster previously utilized Apache Hadoop MapReduce and HDFS file storage. "
-        "Documents were segmented using fixed-size byte streaming chunks of 4000 characters without layout awareness, "
-        "frequently splitting tables and headers across boundaries. Search was powered exclusively by Apache Solr with "
-        "TF-IDF term weighting without dense vector representations or cross-encoder reranking. "
-        "This legacy subsystem is maintained solely for historical audit replay and is scheduled for complete decommissioning."
-    ))
-
-    # Section 3 - Core SLA
-    sections.append((
-        "Section 3: High Availability, Tier-1 SLA Metrics & Disaster Recovery",
+        "Section 2: High Availability, Tier-1 SLA Metrics & Disaster Recovery",
         "The platform guarantees high availability and strict service level agreements (SLAs) across all tier-1 production regions. "
         "The Tier-1 SLA specifications are as follows: "
         "Platform Uptime SLA is guaranteed at 99.995% monthly rolling uptime with tier-1 service credit penalties. "
@@ -48,19 +39,9 @@ def build_content():
         "Cross-Encoder reranking latency SLA is under 85 ms across top-15 candidate evaluation."
     ))
 
-    # Section 4 - Distractor for SLAs
+    # Section 3: Core Runbook ERR-409-TIMEOUT
     sections.append((
-        "Section 4: Tier-3 Archival & Cold Storage Service Level Agreements",
-        "For non-critical analytics, batch reports, and cold historical backups, Tier-3 storage operates under relaxed operational metrics. "
-        "Tier-3 Platform Uptime SLA is 99.0% calculated on an annual basis without financial breach credits. "
-        "Recovery Time Objective (RTO) for Tier-3 data restoration is 48 hours following severe multi-region disruptions. "
-        "Recovery Point Objective (RPO) for Tier-3 cold snapshots allows up to 24 hours of delta data loss. "
-        "P99 batch retrieval latency SLA is 4500 ms for queued asynchronous data warehouse export tasks."
-    ))
-
-    # Section 5 - Core Error Code
-    sections.append((
-        "Section 5: Core Incident Runbook: ERR-409-TIMEOUT",
+        "Section 3: Core Incident Runbook: ERR-409-TIMEOUT",
         "Error Code ERR-409-TIMEOUT: Distributed lock acquisition timed out after 30,000 ms. "
         "This error is triggered when an active transaction in the distributed worker cluster fails to acquire or renew a mutex "
         "in the distributed lock coordinator due to partition lag or high contention on shared tenant state. "
@@ -71,30 +52,9 @@ def build_content():
         "Step 4: Client applications MUST implement exponential backoff with randomized jitter between 200 ms and 5,000 ms before retrying."
     ))
 
-    # Section 6 - Distractor for Error Code
+    # Section 4: Security Compliance & Encryption
     sections.append((
-        "Section 6: Legacy Web Application Conflict Runbook: ERR-409-CONFLICT-VERSION",
-        "Error Code ERR-409-CONFLICT-VERSION: Optimistic locking version conflict in web checkout sessions. "
-        "Triggered when two concurrent web browser tabs submit inventory state updates using the same ETag or entity version number. "
-        "Resolution Procedure: "
-        "Step 1: Do NOT terminate worker threads. "
-        "Step 2: Fetch the latest document revision entity from MongoDB cluster using findOneAndUpdate. "
-        "Step 3: Prompt the user with a modal dialogue highlighting conflicting form fields. "
-        "Step 4: No exponential backoff or Redis shard intervention is permitted."
-    ))
-
-    # Section 7 - Distractor for Network Timeout
-    sections.append((
-        "Section 7: Ingress Router Timeout Catalog: ERR-408-REQUEST-TIMEOUT",
-        "Error Code ERR-408-REQUEST-TIMEOUT: Ingress HTTP client read timeout occurred after 60,000 ms. "
-        "Indicates that the downstream client browser failed to transmit the complete HTTP request payload within the timeout window. "
-        "Resolution Procedure: "
-        "Verify downstream client cellular connectivity, inspect Envoy ingress keepalive probes, and instruct user to reload."
-    ))
-
-    # Section 8 - Security & Encryption
-    sections.append((
-        "Section 8: Security Compliance, Encryption & Zero-Trust Governance",
+        "Section 4: Security Compliance, Encryption & Zero-Trust Governance",
         "The platform strictly adheres to SOC2 Type II, ISO/IEC 27001, and HIPAA compliance mandates for sensitive enterprise workloads. "
         "Data at rest stored within the embedded Qdrant vector database and attached NVMe block volumes is encrypted using AES-256-GCM. "
         "Cryptographic keys are managed via AWS KMS Customer Managed Keys (CMK) or HashiCorp Vault Enterprise with automated 90-day rotation. "
@@ -103,39 +63,21 @@ def build_content():
         "Auditing logs are immutably streamed to an append-only WORM compliant storage bucket."
     ))
 
-    # Section 9 - Distractor for Encryption
+    # Section 5: Retrieval & Reranker Calibration
     sections.append((
-        "Section 9: External Cloud Blob Storage Encryption Guidelines (Third-Party)",
-        "For public marketing assets and external media blobs hosted on third-party CDNs, lightweight encryption standards apply. "
-        "Data is encrypted using server-side AES-128-CBC with AWS managed provider keys (SSE-S3). "
-        "Transit protocols permit legacy TLS 1.2 with RSA key exchange for backward compatibility with older mobile user agents. "
-        "WORM compliance and document-level RBAC are not enforced for public content delivery CDN nodes."
-    ))
-
-    # Section 10 - Retrieval & Reranker Math
-    sections.append((
-        "Section 10: Two-Stage Hybrid Retrieval & Cross-Encoder Calibration",
+        "Section 5: Two-Stage Hybrid Retrieval & Cross-Encoder Calibration",
         "To eliminate LLM hallucinations and optimize context precision, the RAG engine implements a two-stage retrieval pipeline. "
         "Stage 1 performs hybrid retrieval to fetch top-15 candidate chunks using Reciprocal Rank Fusion of BAAI/bge-small-en-v1.5 and BM25. "
         "Stage 2 routes these candidates through a local BAAI/bge-reranker-base cross-encoder model. "
-        "Raw cross-encoder output logits are normalized using a sigmoid transformation: S_norm = 1 / (1 + exp(-logit)). "
+        "The Cross-Encoder assigns probability scores directly in the range 0.0 to 1.0. "
         "An Abstention Guardrail is configured with a strict confidence threshold of 0.55. "
-        "If the top-ranked chunk exhibits a normalized rerank score below 0.55, the pipeline immediately abstains from generation, "
+        "If the top-ranked chunk exhibits a rerank score below 0.55, the pipeline immediately abstains from generation, "
         "returning is_grounded=False and the message 'Insufficient context in the knowledge base to answer this question reliably.'"
     ))
 
-    # Section 11 - Distractor for Retrieval
+    # Section 6: DR & Backup Retention
     sections.append((
-        "Section 11: Experimental Keyword Search Heuristics (Discarded Prototype)",
-        "During early platform prototyping, single-stage keyword matching was evaluated using Elasticsearch BM25 scoring alone. "
-        "Without semantic dense embeddings or cross-encoder reranking, retrieval suffered from severe vocabulary mismatch and synonym blindness. "
-        "Queries with subtle semantic nuances achieved less than 35% context recall. "
-        "The prototyping team formally abandoned single-stage keyword search in favor of the two-stage hybrid RRF pipeline."
-    ))
-
-    # Section 12 - Disaster Recovery
-    sections.append((
-        "Section 12: Disaster Recovery Verification & Backup Retention Schedule",
+        "Section 6: Disaster Recovery Verification & Backup Retention Schedule",
         "Disaster recovery (DR) simulations are executed bi-weekly against active-passive database replicas. "
         "Continuous WAL (Write-Ahead Logging) archiving ensures continuous point-in-time recovery to any millisecond within a 35-day retention window. "
         "Automated health checks ping the cluster control plane every 500 ms; if three consecutive probes fail, DNS traffic fails over automatically."
@@ -143,7 +85,76 @@ def build_content():
 
     return sections
 
-def generate_pdf():
+def build_decoy_sections():
+    """Decoy and Legacy Specifications containing overlapping vocabulary and adversarial distractors."""
+    sections = []
+
+    # Decoy 1: Legacy Architecture (competes with Q4)
+    sections.append((
+        "Section 1: Legacy Ingestion & Vector Architecture: Solr Streaming and Chunks",
+        "The legacy data processing cluster previously utilized Apache Hadoop MapReduce and HDFS file storage. "
+        "Documents were segmented using fixed-size byte streaming chunks of 4000 characters without layout awareness, "
+        "frequently splitting tables and headers across boundaries. Search was powered exclusively by Apache Solr with "
+        "TF-IDF term weighting without dense vector representations or cross-encoder reranking. "
+        "This legacy subsystem is maintained solely for historical audit replay and is scheduled for complete decommissioning."
+    ))
+
+    # Decoy 2: Tier-3 Archival SLAs (competes with Q2)
+    sections.append((
+        "Section 2: Tier-3 Archival Storage Service Level Agreements (RTO & RPO)",
+        "For non-critical analytics, batch reports, and cold historical backups, Tier-3 archival storage operates under relaxed metrics. "
+        "Platform Uptime SLA is 99.0% calculated on an annual basis without financial breach credits. "
+        "Recovery Time Objective (RTO) for Tier-3 data restoration is 48 hours following multi-region disruptions. "
+        "Recovery Point Objective (RPO) for Tier-3 cold snapshots allows up to 24 hours of data loss. "
+        "P99 batch retrieval latency SLA is 4500 ms for queued asynchronous data warehouse export tasks."
+    ))
+
+    # Decoy 3: Conflict Runbook ERR-409-CONFLICT-VERSION (competes with Q1)
+    sections.append((
+        "Section 3: Optimistic Locking Conflict Runbook: ERR-409-CONFLICT-VERSION",
+        "Error Code ERR-409-CONFLICT-VERSION describes an optimistic locking version conflict in web checkout sessions. "
+        "Triggered when concurrent client updates collide on entity version tags. "
+        "Resolution Procedure: "
+        "Step 1: Do NOT terminate worker threads. "
+        "Step 2: Fetch latest document revision from MongoDB cluster using findOneAndUpdate. "
+        "Step 3: Prompt user with conflict resolution modal. "
+        "Step 4: No exponential backoff or Redis shard intervention is permitted."
+    ))
+
+    # Decoy 4: Ingress Timeout ERR-408
+    sections.append((
+        "Section 4: Ingress Router Timeout Catalog: ERR-408-REQUEST-TIMEOUT",
+        "Error Code ERR-408-REQUEST-TIMEOUT: Ingress HTTP client read timeout occurred after 60,000 ms. "
+        "Indicates that the downstream client browser failed to transmit the complete HTTP request payload within the timeout window. "
+        "Resolution Procedure: "
+        "Verify downstream client cellular connectivity, inspect Envoy ingress keepalive probes, and instruct user to reload."
+    ))
+
+    # Decoy 5: External Public Cloud Encryption (competes with Q3)
+    sections.append((
+        "Section 5: Third-Party Public Cloud Blob Encryption Guidelines",
+        "For public marketing assets and external media blobs hosted on third-party CDNs, lightweight encryption standards apply. "
+        "Data is encrypted using server-side AES-128-CBC with AWS managed provider keys (SSE-S3). "
+        "Transit protocols permit legacy TLS 1.2 with RSA key exchange for backward compatibility with older mobile user agents. "
+        "WORM compliance and document-level RBAC are not enforced for public content delivery CDN nodes."
+    ))
+
+    # Decoy 6: Discarded Prototype Heuristics
+    sections.append((
+        "Section 6: Experimental Keyword Search Heuristics (Discarded Prototype)",
+        "During early platform prototyping, single-stage keyword matching was evaluated using Elasticsearch BM25 scoring alone. "
+        "Without semantic dense embeddings or cross-encoder reranking, retrieval suffered from severe vocabulary mismatch and synonym blindness. "
+        "Queries with subtle semantic nuances achieved less than 35% context recall. "
+        "The prototyping team formally abandoned single-stage keyword search in favor of the two-stage hybrid RRF pipeline."
+    ))
+
+    return sections
+
+def generate_documents():
+    primary_sections = build_primary_spec_sections()
+    decoy_sections = build_decoy_sections()
+
+    # 1. Generate Primary PDF via ReportLab
     doc = SimpleDocTemplate(str(PDF_PATH), pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     styles = getSampleStyleSheet()
     
@@ -162,7 +173,8 @@ def generate_pdf():
         leading=16,
         textColor=colors.HexColor("#0f172a"),
         spaceBefore=10,
-        spaceAfter=6
+        spaceAfter=6,
+        keepWithNext=True
     )
     body_style = ParagraphStyle(
         'DocBody',
@@ -170,35 +182,37 @@ def generate_pdf():
         fontSize=9,
         leading=13,
         textColor=colors.HexColor("#334155"),
-        spaceAfter=6
+        spaceAfter=8
     )
 
     story = [
-        Paragraph("Enterprise Cloud Data Platform Architecture & Specification v5.0", title_style),
-        Paragraph("Master Runbook, Security Architecture & Comprehensive Engineering Specifications", body_style),
+        Paragraph("Enterprise Cloud Data Platform: Technical Architecture & Operational Runbooks", title_style),
+        Paragraph("Confidential Technical Documentation - Production Tier-1 Environment", body_style),
         Spacer(1, 10)
     ]
 
-    sections = build_content()
-    for title, text in sections:
-        story.append(Paragraph(f"## {title}", h1_style))
+    for title, text in primary_sections:
+        story.append(Paragraph(title, h1_style))
         story.append(Paragraph(text, body_style))
-        story.append(Spacer(1, 6))
+        story.append(Spacer(1, 4))
 
     doc.build(story)
-    print(f"Generated enterprise PDF at {PDF_PATH} ({os.path.getsize(PDF_PATH)} bytes)")
+    print(f"Generated primary enterprise PDF at {PDF_PATH} ({PDF_PATH.stat().st_size} bytes)")
 
-def generate_markdown():
-    sections = build_content()
-    lines = ["# Enterprise Cloud Data Platform Architecture & Specification v5.0\n\nMaster Runbook, Security Architecture & Comprehensive Engineering Specifications.\n"]
-    for title, text in sections:
-        lines.append(f"\n## {title}\n{text}\n")
+    # 2. Generate Decoy & Legacy Markdown file
+    md_lines = ["# Legacy Subsystems & Archival Technical Guidelines\n"]
+    for title, text in decoy_sections:
+        md_lines.append(f"## {title}\n{text}\n")
     
-    md_content = "\n".join(lines)
-    with open(MD_PATH, "w", encoding="utf-8") as f:
-        f.write(md_content)
-    print(f"Generated enterprise Markdown at {MD_PATH} ({os.path.getsize(MD_PATH)} bytes)")
+    with open(DECOY_MD_PATH, "w", encoding="utf-8") as f:
+        f.write("\n".join(md_lines))
+    print(f"Generated decoy & legacy Markdown at {DECOY_MD_PATH} ({DECOY_MD_PATH.stat().st_size} bytes)")
+
+    # 3. Clean up old duplicate file if present
+    old_md = DATA_DIR / "enterprise_platform_spec.md"
+    if old_md.exists():
+        old_md.unlink()
+        print(f"Removed legacy duplicate {old_md.name} to ensure clean corpus separation.")
 
 if __name__ == "__main__":
-    generate_pdf()
-    generate_markdown()
+    generate_documents()

@@ -26,8 +26,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load the RAG pipeline once when the server starts (singleton QdrantClient instance)
-rag = EnterpriseRAG(local_model="qwen2.5:3b")
+# Load the RAG pipeline once when the server starts (singleton instance)
+from rag_pipeline import get_enterprise_rag
+rag = get_enterprise_rag()
 
 class QueryRequest(BaseModel):
     question: str

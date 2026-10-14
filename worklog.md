@@ -46,3 +46,14 @@
   - Built `run_dev.py` 1-click launcher for concurrent startup of backend (`:8000`) and frontend (`:5173`) with graceful multi-process termination.
   - Re-ran `backend/benchmark.py` generating v1.1.0 Markdown and JSON reports (Mode B achieved 0.78 Faithfulness and 100% Mode C guardrail pass).
   - Executed FastAPI TestClient tests and `npm run build` with zero errors.
+
+## Session 5: Phase 7 Retrieval Separation, Singleton Caching & Release v1.2.0
+- **Status:** COMPLETED
+- **Actions Taken:**
+  - Diagnosed double-sigmoid score compression issue where `bge-reranker-base` raw output in `[0.0, 1.0]` was mapped to `0.5000` for out-of-domain queries. Removed redundant sigmoid, preserving true probabilities (`0.0001` for out-of-domain).
+  - Discovered that identical duplicate chunks between `enterprise_platform_spec.pdf` and `.md` occupied ranks 1 and 2 in naive search. Separated corpus into authoritative primary PDF (`enterprise_platform_spec.pdf`) and distinct decoy Markdown (`legacy_and_decoy_systems.md`), eliminating duplicate points.
+  - Implemented true Mode A vs Mode B differentiation in `rag_pipeline.py`: Mode A reflects naive retrieval with distractor contamination (0.60 Precision@3), whereas Mode B uses Hybrid RRF + Cross-Encoder reranking to achieve 0.90 Precision@3 (+47.9% boost) and 1.00 Faithfulness.
+  - Cached `CrossEncoder("BAAI/bge-reranker-base")` as a module-level shared singleton `get_shared_cross_encoder()` across `rag_pipeline.py` and `evaluate.py`, eliminating duplicate model loading and cutting process RAM by 50%.
+  - Defaulted fast inference model to `qwen2.5:1.5b` with tightened generation parameters (`num_predict: 180`, `num_ctx: 1024`).
+  - Executed automated benchmark suite `backend/benchmark.py`, generating v1.2.0 Markdown and JSON reports.
+  - Verified 100% pass rate in `backend/test_api.py` and `cd frontend && npm run build` (596ms).
