@@ -41,3 +41,18 @@
 ### 9. Duplicate CrossEncoder Weights in Memory (Phase 7 Resolution)
 - **Issue:** Both `rag_pipeline.py` and `evaluate.py` independently loaded `CrossEncoder("BAAI/bge-reranker-base")`, consuming 2x memory and duplicating model initialization time.
 - **Fix:** Implemented `get_shared_cross_encoder()` module-level singleton in `rag_pipeline.py` and shared it with `evaluate.py`, loading weights into RAM exactly once.
+
+### 10. React UI 'Failed to fetch' & Port/Venv Resolution in Unified Launcher (v1.3.1)
+- **Issue:** The React frontend at `http://localhost:5173` displayed `Failed to fetch` due to three combined root causes:
+  1. Frontend fetch calls used hardcoded `http://localhost:8000/...` instead of a relative path through Vite's dev proxy, causing Windows IPv6 `localhost` (`::1`) vs `127.0.0.1` resolution mismatch and browser CORS preflight blocks.
+  2. `run_dev.py` spawned `uv run python -m uvicorn api:app --host 0.0.0.0 --port 8000` without resolving the virtual environment (`.venv/Scripts/python.exe`), leading to interpreter path divergence and stale background processes holding port 8000 and SQLite locks on `qdrant_db`.
+  3. `run_dev.py` printed the ready banner immediately before FastAPI finished loading heavy Cross-Encoder and Qdrant weights, causing user queries to fail on early clicks.
+- **Fix:**
+  1. Configured Vite `server.proxy` for `'/api': { target: 'http://127.0.0.1:8000', changeOrigin: true }` in `frontend/vite.config.js`.
+  2. Implemented `apiFetch` in `frontend/src/App.jsx` using relative endpoints (`/api/query`, `/api/upload`, `/api/benchmark`, `/api/health`) with automatic fallback to `127.0.0.1:8000`.
+  3. Re-architected `run_dev.py` to:
+     - Explicitly resolve `.venv/Scripts/python.exe` (or POSIX `.venv/bin/python`).
+     - Bind FastAPI strictly to `--host 127.0.0.1 --port 8000`.
+     - Detect and release stale processes occupying port 8000 before launch.
+     - Poll `http://127.0.0.1:8000/api/health` until returning 200 OK before displaying the active services banner.
+     - Enforce process tree termination (`taskkill /F /T`) on Ctrl+C to eliminate orphaned worker processes.

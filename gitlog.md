@@ -1,5 +1,19 @@
 # Git Commit History & Release Log
 
+## [Release v1.3.1] - Runtime Fix: Vite Proxy, Venv Resolution & Launcher Health Polling
+- `fix(vite)`: Configure server.proxy for '/api' -> 'http://127.0.0.1:8000' in frontend/vite.config.js to eliminate Windows localhost IPv6 and CORS preflight blocks
+- `fix(frontend)`: Implement apiFetch in frontend/src/App.jsx with relative endpoints (/api/query, /api/upload, /api/benchmark, /api/health) and automatic fallback to 127.0.0.1:8000
+- `feat(frontend)`: Add live backend connection monitoring and offline indicator in navbar telemetry pill
+- `fix(launcher)`: Ensure run_dev.py explicitly resolves virtual environment Python interpreter (.venv/Scripts/python.exe) and binds to 127.0.0.1:8000
+- `fix(launcher)`: Add pre-flight stale process detection and termination for port 8000 to prevent Qdrant SQLite lock crashes
+- `fix(launcher)`: Add health polling on http://127.0.0.1:8000/api/health blocking until 200 OK before displaying active services banner
+- `fix(launcher)`: Implement process tree termination (taskkill /F /T) on Ctrl+C to prevent orphaned worker processes
+- `test(runtime)`: Verify live 200 OK responses on GET /api/health, GET /api/benchmark, and POST /api/query
+- `test(build)`: Verify frontend production bundle via npm run build (1.35s, 0 errors)
+- `docs(release)`: Update fixes.md, worklog.md, and gitlog.md for Release v1.3.1
+
+---
+
 ## [Release v1.3.0] - Phase 8 Production UI Overhaul (Linear / Vercel / Raycast Obsidian Aesthetic)
 - `feat(ui)`: Overhaul React frontend styling to Linear / Vercel Geist / Raycast obsidian aesthetic (`#050507` canvas, ambient glow, translucent glass cards)
 - `feat(typography)`: Integrate Google Fonts `Inter` for prose and `JetBrains Mono` for latency, citations, codes, and scores

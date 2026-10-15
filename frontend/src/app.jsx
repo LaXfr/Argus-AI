@@ -28,6 +28,21 @@ const PRESET_QUERIES = [
   },
 ];
 
+// Helper for fetching with relative path as primary (via Vite proxy) and direct 127.0.0.1:8000 fallback
+async function apiFetch(endpoint, options = {}) {
+  try {
+    const res = await fetch(endpoint, options);
+    return res;
+  } catch (err) {
+    // If relative fetch fails, fallback to direct 127.0.0.1:8000
+    if (!endpoint.startsWith("http")) {
+      const fallbackUrl = `http://127.0.0.1:8000${endpoint}`;
+      return await fetch(fallbackUrl, options);
+    }
+    throw err;
+  }
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("workbench"); // "workbench" | "benchmark"
 
@@ -52,7 +67,29 @@ export default function App() {
   const [benchmarkLoading, setBenchmarkLoading] = useState(false);
   const [benchmarkError, setBenchmarkError] = useState("");
 
+  // Backend Health State
+  const [backendOnline, setBackendOnline] = useState(true);
+
   const timerRef = useRef(null);
+
+  // Check backend health on mount
+  useEffect(() => {
+    const verifyHealth = async () => {
+      try {
+        const res = await apiFetch("/api/health");
+        if (res.ok) {
+          setBackendOnline(true);
+        } else {
+          setBackendOnline(false);
+        }
+      } catch {
+        setBackendOnline(false);
+      }
+    };
+    verifyHealth();
+    const interval = setInterval(verifyHealth, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (loading) {
@@ -73,7 +110,7 @@ export default function App() {
     setBenchmarkLoading(true);
     setBenchmarkError("");
     try {
-      const res = await fetch("http://localhost:8000/api/benchmark");
+      const res = await apiFetch("/api/benchmark");
       const json = await res.json();
       if (json.status === "success") {
         setBenchmarkData(json.benchmark);
@@ -102,7 +139,7 @@ export default function App() {
     setData(null);
 
     try {
-      const response = await fetch("http://localhost:8000/api/query", {
+      const response = await apiFetch("/api/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -148,7 +185,7 @@ export default function App() {
     formData.append("file", uploadFile);
 
     try {
-      const res = await fetch("http://localhost:8000/api/upload", {
+      const res = await apiFetch("/api/upload", {
         method: "POST",
         body: formData,
       });
@@ -219,9 +256,9 @@ export default function App() {
 
           {/* Live Telemetry Status Pills */}
           <div className="telemetry-group">
-            <div className="telemetry-pill airgap">
-              <span className="pulse-dot" />
-              <span>Air-Gapped Local</span>
+            <div className={`telemetry-pill airgap ${backendOnline ? "" : "offline"}`}>
+              <span className={`pulse-dot ${backendOnline ? "" : "offline"}`} />
+              <span>{backendOnline ? "Air-Gapped Local" : "Backend Offline"}</span>
             </div>
             <div className="telemetry-pill tech">
               <span>Qdrant RRF + BGE</span>

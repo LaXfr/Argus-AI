@@ -222,6 +222,12 @@ code, kbd, samp, pre {
   color: #34D399;
 }
 
+.telemetry-pill.airgap.offline {
+  background: var(--accent-rose-subtle);
+  border-color: var(--accent-rose-border);
+  color: #FB7185;
+}
+
 .pulse-dot {
   width: 6px;
   height: 6px;
@@ -229,6 +235,11 @@ code, kbd, samp, pre {
   background: var(--accent-emerald);
   box-shadow: 0 0 8px var(--accent-emerald);
   animation: pulse-glow 2s infinite ease-in-out;
+}
+
+.pulse-dot.offline {
+  background: var(--accent-rose);
+  box-shadow: 0 0 8px var(--accent-rose);
 }
 
 @keyframes pulse-glow {

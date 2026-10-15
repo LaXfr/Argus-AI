@@ -73,3 +73,18 @@
     - Evaluation Benchmarks dashboard: 3 hero KPI bento cards (`+47.9%` Precision lift, 100% Faithfulness, 100% Guardrail pass), comparative matrix table with mini score progress bars and overall mean footer, and Mode C guardrail card.
   - Implemented complete stylesheet in `frontend/src/App.css` featuring `#050507` obsidian background with radial ambient glow, elevated translucent surfaces (`rgba(10, 10, 14, 0.75)` with `backdrop-filter: blur(16px)`), hairline borders (`rgba(255, 255, 255, 0.07)`), emerald/rose/indigo status accents, and responsive layout for desktop/tablet/mobile.
   - Successfully executed `npm run build` in `frontend/`, verifying 0 errors and 0 warnings (480ms build time).
+
+## Session 7: Failed to Fetch Root Cause Resolution & Unified Launcher Hardening (Release v1.3.1)
+- **Status:** COMPLETED
+- **Actions Taken:**
+  - Diagnosed `Failed to fetch` root cause: frontend called hardcoded `http://localhost:8000` encountering Windows IPv6 `localhost` vs `127.0.0.1` binding divergence, while orphaned background python processes held locks on `qdrant_db` and port 8000.
+  - Configured Vite `server.proxy` for `'/api': { target: 'http://127.0.0.1:8000', changeOrigin: true }` in `frontend/vite.config.js`.
+  - Implemented `apiFetch` in `frontend/src/App.jsx` using relative endpoints (`/api/query`, `/api/upload`, `/api/benchmark`, `/api/health`) with automatic fallback to `127.0.0.1:8000`. Added live backend connection polling and visual status in the navbar telemetry pill.
+  - Hardened `run_dev.py`:
+    - Explicitly resolves virtual environment interpreter (`.venv/Scripts/python.exe` on Windows).
+    - Spawns backend with `--host 127.0.0.1 --port 8000`.
+    - Detects and terminates stale orphan processes holding port 8000.
+    - Polls `http://127.0.0.1:8000/api/health` until 200 OK before printing ready banner.
+    - Uses OS process tree termination (`taskkill /F /T`) on shutdown to prevent leaked worker processes.
+  - Cleaned up stale processes and verified `GET /api/health`, `GET /api/benchmark`, and `POST /api/query` return 200 OK cleanly.
+  - Rebuilt production bundle (`npm run build`) in 1.35s with 0 errors.
